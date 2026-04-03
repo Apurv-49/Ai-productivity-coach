@@ -20,26 +20,46 @@ client = OpenAI(
     api_key=HF_TOKEN if HF_TOKEN else "not-needed"
 )
 
-ENV_URL = os.environ.get("ENV_URL", "http://localhost:8000")
+ENV_URL = os.environ.get("ENV_URL", "https://apurv255-ai-productivity-coach.hf.space")
 
 
 def reset_env(task: str = "easy"):
-    resp = requests.get(f"{ENV_URL}/reset", params={"task": task})
-    return resp.json()["state"]
+    try:
+        resp = requests.get(f"{ENV_URL}/reset", params={"task": task})
+        
+        data = resp.json()
+        if "state" in data:
+            return data["state"]
+        elif "error" in data:
+            raise Exception(f"Server error: {data['error']}")
+        return data
+    except Exception as e:
+        print(f"[ERROR] reset_env failed: {e}")
+        raise
 
 
 def step_env(state: dict):
-    resp = requests.post(
-        f"{ENV_URL}/step_rl",
-        json=state,
-        headers={"Content-Type": "application/json"}
-    )
-    return resp.json()
+    try:
+        resp = requests.post(
+            f"{ENV_URL}/step_rl",
+            json=state,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        data = resp.json()
+        return data
+    except Exception as e:
+        print(f"[ERROR] step_env failed: {e}")
+        raise
 
 
 def get_score():
-    resp = requests.get(f"{ENV_URL}/score")
-    return resp.json()
+    try:
+        resp = requests.get(f"{ENV_URL}/score")
+        return resp.json()
+    except Exception as e:
+        print(f"[ERROR] get_score failed: {e}")
+        return {"overall_score": 0, "tasks": {}}
 
 
 def get_action_from_llm(state: dict) -> str:
@@ -96,20 +116,19 @@ def run_episode(task: str = "easy"):
         # try LLM first, fallback to RL agent
         llm_action = get_action_from_llm(state)
 
+        # build step input — always send full state
+        step_input = dict(state)
         if llm_action:
-            step_input = dict(state)
             step_input["action"] = llm_action
-        else:
-            step_input = state
 
         result = step_env(state)
 
-        next_state = result["state"]
-        reward = result["reward"]
-        done = result["done"]
+        next_state = result.get("state", state)
+        reward = result.get("reward", 0)
+        done = result.get("done", False)
         total_reward += reward
 
-        print(f"[STEP]")
+        print("[STEP]")
         print(json.dumps({
             "step": step_count,
             "action": llm_action or "rl_agent",
@@ -144,6 +163,9 @@ if __name__ == "__main__":
 
     if args.task == "all":
         for t in ["easy", "medium", "hard"]:
+            print(f"\n{'='*40}")
+            print(f"Running task: {t.upper()}")
+            print(f"{'='*40}")
             run_episode(task=t)
             time.sleep(1)
     else:

@@ -1,4 +1,4 @@
-const API = "http://127.0.0.1:8000";
+const API = "";
 
 let chart, prevChart;
 
@@ -48,7 +48,6 @@ function initCharts() {
     },
   });
 
-  // restore last state
   if (currentSession.length > 0) {
     currentFocus = currentSession[currentSession.length - 1];
   }
@@ -63,7 +62,6 @@ function resetSession() {
 
 /* 🔥 HYBRID STATE UPDATE */
 function updateState(action) {
-  // fatigue always increases slightly
   currentFatigue += 0.03;
 
   if (action === "continue") {
@@ -78,19 +76,35 @@ function updateState(action) {
     }
   }
 
-  // random distraction
   if (Math.random() < 0.1) {
     currentDistractions.push("instagram");
     currentFocus -= 0.03;
   }
 
-  // decay
   currentFocus -= 0.02;
   currentFocus -= currentFatigue * 0.05;
 
-  // clamp values
   currentFocus = Math.max(0.05, Math.min(1, currentFocus));
   currentFatigue = Math.max(0, Math.min(1, currentFatigue));
+}
+
+/* 🔥 GENERATE ADVICE FROM ACTION */
+function generateAdvice(action, reason, focus, fatigue, distractions) {
+  if (action === "take_break") {
+    return `Your fatigue is high (${fatigue.toFixed(2)}). Taking a short break will help restore focus. Step away for 5–10 minutes.`;
+  } else if (action === "block_distraction") {
+    const d = distractions.length > 0 ? distractions[0] : "distractions";
+    return `${d} is hurting your focus. Blocking it now will improve your productivity significantly.`;
+  } else {
+    return `Your focus is at ${focus.toFixed(2)}. Keep going — you're in a good flow state. Maintain momentum!`;
+  }
+}
+
+/* 🔥 GENERATE CONFIDENCE SCORE */
+function generateConfidence(focus, fatigue, distractions) {
+  const base = focus * 0.6 - fatigue * 0.3 - distractions.length * 0.05;
+  const confidence = Math.max(0.4, Math.min(0.99, base + 0.5));
+  return (confidence * 100).toFixed(0) + "%";
 }
 
 /* 🔥 SAFE FETCH */
@@ -118,13 +132,17 @@ async function stepEnv() {
 
   await new Promise((r) => setTimeout(r, 400));
 
-  // only take user input ONCE
   if (currentSession.length === 0) {
-    currentFocus = parseFloat(document.getElementById("focusInput").value);
-    currentFatigue = parseFloat(document.getElementById("fatigueInput").value);
-    currentDistractions = document
-      .getElementById("distractionInput")
-      .value.split(",")
+    const focusVal = parseFloat(document.getElementById("focusInput").value);
+    const fatigueVal = parseFloat(
+      document.getElementById("fatigueInput").value,
+    );
+    const distractionVal = document.getElementById("distractionInput").value;
+
+    currentFocus = isNaN(focusVal) ? 0.5 : focusVal;
+    currentFatigue = isNaN(fatigueVal) ? 0.3 : fatigueVal;
+    currentDistractions = distractionVal
+      .split(",")
       .map((x) => x.trim())
       .filter((x) => x);
   }
@@ -143,30 +161,44 @@ async function stepEnv() {
       }),
     });
 
-    document.getElementById("action").innerText = data.action;
-    document.getElementById("reason").innerText = data.reason;
-    typeText(adviceEl, data.advice);
-    document.getElementById("confidence").innerText = data.confidence;
+    const action = data.action;
+    const reason = data.reason;
 
-    // 🔥 UPDATE STATE AUTOMATICALLY
-    updateState(data.action);
+    // 🔥 GENERATE ADVICE + CONFIDENCE LOCALLY
+    const advice = generateAdvice(
+      action,
+      reason,
+      currentFocus,
+      currentFatigue,
+      currentDistractions,
+    );
+    const confidence = generateConfidence(
+      currentFocus,
+      currentFatigue,
+      currentDistractions,
+    );
 
-    // 🔥 UPDATE INPUT BOXES (IMPORTANT UX)
+    document.getElementById("action").innerText = action;
+    document.getElementById("reason").innerText = reason;
+    typeText(adviceEl, advice);
+    document.getElementById("confidence").innerText = confidence;
+
+    updateState(action);
+
     document.getElementById("focusInput").value = currentFocus.toFixed(2);
     document.getElementById("fatigueInput").value = currentFatigue.toFixed(2);
     document.getElementById("distractionInput").value =
       currentDistractions.join(", ");
 
-    // save session
-    currentSession.push(currentFocus);
+    currentSession.push(parseFloat(currentFocus.toFixed(2)));
     localStorage.setItem("currentSession", JSON.stringify(currentSession));
 
-    // update graph
     chart.data.labels = currentSession.map((_, i) => i);
     chart.data.datasets[0].data = currentSession;
     chart.update();
   } catch (error) {
     adviceEl.innerHTML = "⚠️ Server issue. Try again.";
+    console.error(error);
   }
 
   isLoading = false;

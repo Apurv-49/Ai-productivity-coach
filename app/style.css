@@ -1,0 +1,98 @@
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #0f172a, #020617);
+  color: white;
+  text-align: center;
+  margin: 0;
+}
+
+h1 {
+  margin: 20px;
+  font-size: 32px;
+}
+
+.box {
+  background: rgba(30, 41, 59, 0.6);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  margin: 20px auto;
+  padding: 20px;
+  width: 60%;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  animation: fadeIn 0.5s ease;
+}
+
+/* INPUT FIX */
+input {
+  margin: 10px;
+  padding: 12px;
+  width: 180px;
+  border-radius: 10px;
+  border: none;
+  outline: none;
+  background: #1e293b !important;
+  color: white !important;
+}
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+  -webkit-text-fill-color: white !important;
+}
+
+input:focus {
+  box-shadow: 0 0 12px #3b82f6;
+  background: #0f172a !important;
+}
+
+/* REMOVE ARROWS */
+input[type=number]::-webkit-inner-spin-button {
+  display: none;
+}
+
+/* BUTTONS */
+.controls button {
+  padding: 12px 25px;
+  margin: 10px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.3s;
+}
+
+.controls button:first-child {
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: white;
+}
+
+.controls button:last-child {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: white;
+}
+
+.controls button:hover {
+  transform: scale(1.05);
+}
+
+/* TYPING */
+.typing {
+  border-right: 2px solid #3b82f6;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* BADGE */
+.badge {
+  display: inline-block;
+  padding: 8px 15px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #22c55e, #4ade80);
+  color: black;
+  font-weight: bold;
+}
+
+@keyframes fadeIn {
+  from {opacity: 0;}
+  to {opacity: 1;}
+}

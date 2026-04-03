@@ -1,3 +1,13 @@
+---
+title: AI Productivity Coach
+emoji: 🧠
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # 🧠 AI Productivity Coach (RL-Based)
 
 A Reinforcement Learning-based AI system that helps users optimize focus, reduce distractions, and manage fatigue dynamically.
@@ -42,31 +52,33 @@ A Reinforcement Learning-based AI system that helps users optimize focus, reduce
 
 ## 🔌 API Endpoints
 
-- /reset → Initialize environment  
-- /step_rl → Run RL step (returns state, reward, done)  
-- /step → UI-based AI advice  
+- /reset → Initialize environment
+- /step_rl → Run RL step (returns state, reward, done)
+- /step → UI-based AI advice
+- /score → Get agent performance score
+- /health → Health check
 
 ---
 
 ## ▶️ Run Locally
-
-Run the backend server:
+```bash
 uvicorn app.main:app --reload
+```
 
 ---
 
 ## 🐳 Run with Docker
-
-Build and run the project using Docker:
+```bash
 docker build -t focusforge .
 docker run -p 8000:8000 focusforge
+```
 
 ---
 
 ## 🧪 Run Inference
-
-Run the RL agent using:
+```bash
 python inference.py
+```
 
 ---
 
@@ -74,15 +86,17 @@ python inference.py
 
 Score range: 0 → 1
 
-Based on:
-- Average focus
-- Total reward
-- Distractions
+| Agent | Score |
+|---|---|
+| Random agent | ~0.21 |
+| Trained Q-agent | ~0.74 |
+
+Based on average focus, total reward, and distractions managed.
 
 ---
 
 ## 📁 Project Structure
-
+```
 focusforge/
 │
 ├── app/
@@ -95,7 +109,8 @@ focusforge/
 ├── openenv.yaml
 ├── requirements.txt
 ├── Dockerfile
-├── README.md
+└── README.md
+```
 
 ---
 

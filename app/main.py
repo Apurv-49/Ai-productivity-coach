@@ -13,7 +13,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS — required for HuggingFace iframe + frontend JS calls
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,7 +36,6 @@ async def startup_event():
     except Exception as e:
         print(f"Startup warning: {e}")
 
-# Serve static files (CSS, JS)
 app.mount("/static", StaticFiles(directory="app"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -61,9 +59,18 @@ def health():
     return {"status": "ok", "message": "AI Productivity Coach is running"}
 
 @app.get("/reset")
-def reset():
+def reset(task: str = "easy"):
     try:
-        return {"state": env.reset().dict()}
+        obs = env.reset(task)
+        return {"state": obs.dict()}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# ✅ NEW — required by OpenEnv spec
+@app.get("/state")
+def state():
+    try:
+        return {"state": env.state().dict()}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -92,10 +99,24 @@ def step(obs: Observation):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# ✅ UPDATED — per-task grader scores
 @app.get("/score")
 def score():
     try:
-        result = agent.get_score(env)
-        return result
+        agent.freeze()
+        easy = env.grade(agent, "easy")
+        medium = env.grade(agent, "medium")
+        hard = env.grade(agent, "hard")
+
+        overall = round((easy.score + medium.score + hard.score) / 3, 4)
+
+        return {
+            "overall_score": overall,
+            "tasks": {
+                "easy": easy.dict(),
+                "medium": medium.dict(),
+                "hard": hard.dict()
+            }
+        }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})

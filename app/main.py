@@ -1,14 +1,14 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from app.env import FocusEnv   # ✅ FIXED
-from app.agent import QLearningAgent
+from app.env import FocusEnv
+from app.agent import FocusAgent   # ✅ FIXED
 from app.models import Observation
 
 app = FastAPI()
 
-env = FocusEnv()   # ✅ FIXED
-agent = QLearningAgent()
+env = FocusEnv()
+agent = FocusAgent()   # ✅ FIXED
 
 # Serve static files (CSS, JS)
 app.mount("/static", StaticFiles(directory="app"), name="static")
@@ -23,7 +23,7 @@ def reset():
 
 @app.post("/step_rl")
 def step_rl(obs: Observation):
-    action = agent.choose_action(obs.dict())
+    action, _ = agent.decide(obs.dict(), training=False)   # ✅ FIXED
     next_state, reward, done, _ = env.step(action)
 
     return {
@@ -34,5 +34,10 @@ def step_rl(obs: Observation):
 
 @app.post("/step")
 def step(obs: Observation):
-    action = agent.choose_action(obs.dict())
-    return {"action": action}
+    action, reason = agent.decide(obs.dict(), training=False)   # ✅ FIXED
+
+    return {
+        "action": action.action,
+        "target": action.target,
+        "reason": reason
+    }

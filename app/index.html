@@ -4,8 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Productivity Coach</title>
-
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="/static/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -13,54 +12,48 @@
 
   <h1>🚀 AI Productivity Coach</h1>
 
-  <!-- USER INPUT -->
   <div class="box">
-    <h2> User Input</h2>
-
-    <input id="focusInput" type="number" step="0.1" placeholder="Focus (0–1)">
-    <input id="fatigueInput" type="number" step="0.1" placeholder="Fatigue (0–1)">
-    <input id="distractionInput" type="text" placeholder="Distractions">
+    <h2>👤 User Input</h2>
+    <input id="focusInput" type="number" step="0.1" min="0" max="1" placeholder="Focus (0–1)" value="0.5">
+    <input id="fatigueInput" type="number" step="0.1" min="0" max="1" placeholder="Fatigue (0–1)" value="0.3">
+    <input id="distractionInput" type="text" placeholder="Distractions (e.g. youtube,instagram)" value="youtube,instagram">
   </div>
 
-  <!-- BUTTONS -->
   <div class="controls">
     <button onclick="stepEnv()">⚡ Get AI Advice</button>
     <button onclick="resetSession()">🔄 Reset Session</button>
   </div>
 
-  <!-- OUTPUT -->
   <div class="box">
     <h2>🤖 Action</h2>
-    <p id="action"></p>
+    <p id="action">—</p>
   </div>
 
   <div class="box">
     <h2>💡 Reason</h2>
-    <p id="reason"></p>
+    <p id="reason">—</p>
   </div>
 
   <div class="box">
     <h2>🧠 AI Advice</h2>
-    <p id="advice" class="typing"></p>
+    <p id="advice" class="typing">Click "Get AI Advice" to start.</p>
   </div>
 
   <div class="box">
     <h2>📊 Confidence</h2>
-    <p id="confidence" class="badge"></p>
+    <p id="confidence" class="badge">—</p>
   </div>
 
-  <!-- CURRENT SESSION -->
   <div class="box">
     <h2>📈 Current Session</h2>
     <canvas id="focusChart"></canvas>
   </div>
 
-  <!-- PREVIOUS SESSION -->
   <div class="box">
     <h2>📊 Previous Session</h2>
     <canvas id="prevChart"></canvas>
   </div>
 
-  <script src="script.js"></script>
+  <script src="/static/script.js"></script>
 </body>
 </html>

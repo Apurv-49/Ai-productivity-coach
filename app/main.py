@@ -25,15 +25,17 @@ app.add_middleware(
 env = FocusEnv()
 agent = FocusAgent()
 
-# Train agent on startup if no saved Q-table exists
 @app.on_event("startup")
 async def startup_event():
-    if not os.path.exists("q_table.json"):
-        print("No Q-table found. Training agent...")
-        agent.train(env, episodes=500)
-        print("Training complete.")
-    else:
-        print("Q-table loaded.")
+    try:
+        if not os.path.exists("q_table.json"):
+            print("No Q-table found. Training agent for 300 episodes...")
+            agent.train(env, episodes=300)
+            print("Training complete.")
+        else:
+            print("Q-table loaded. Agent ready.")
+    except Exception as e:
+        print(f"Startup warning: {e}")
 
 # Serve static files (CSS, JS)
 app.mount("/static", StaticFiles(directory="app"), name="static")
@@ -49,7 +51,7 @@ def home():
                 <body style='font-family:sans-serif; padding:2rem; background:#0d0d0d; color:white;'>
                     <h2>🧠 AI Productivity Coach API</h2>
                     <p>Backend is running successfully.</p>
-                    <p>Visit <a href='/docs' style='color:#a78bfa;'>/docs</a> for the API reference.</p>
+                    <p>Visit <a href='/docs' style='color:#a78bfa;'>/docs</a> for API reference.</p>
                 </body>
             </html>
         """, status_code=200)

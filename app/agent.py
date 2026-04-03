@@ -73,6 +73,73 @@ class FocusAgent:
         # 🔥 FASTER DECAY
         self.epsilon = max(0.05, self.epsilon * 0.992)
 
+    # 🏋️ TRAIN
+    def train(self, env, episodes=300):
+        print(f"Training for {episodes} episodes...")
+
+        for episode in range(episodes):
+            state = env.reset()
+            state_dict = state.dict()
+            done = False
+            steps = 0
+
+            while not done and steps < 50:
+                action, _ = self.decide(state_dict, training=True)
+                next_state, reward, done, _ = env.step(action)
+
+                next_state_dict = next_state.dict()
+
+                self.update(
+                    prev_state=state_dict,
+                    action=action.action,
+                    reward=reward.value,
+                    next_state=next_state_dict
+                )
+
+                state_dict = next_state_dict
+                steps += 1
+
+            if episode % 50 == 0:
+                print(f"  Episode {episode}/{episodes} | epsilon={self.epsilon:.3f}")
+
+        self.save_q_table()
+        print("Training complete. Q-table saved.")
+
+    # 📊 SCORE
+    def get_score(self, env):
+        state = env.reset()
+        state_dict = state.dict()
+        done = False
+        total_reward = 0
+        total_focus = 0
+        total_distractions = 0
+        steps = 0
+
+        self.freeze()
+
+        while not done and steps < 50:
+            action, _ = self.decide(state_dict, training=False)
+            next_state, reward, done, _ = env.step(action)
+
+            next_state_dict = next_state.dict()
+            total_reward += reward.value
+            total_focus += next_state_dict["focus_level"]
+            total_distractions += len(next_state_dict["distractions"])
+            state_dict = next_state_dict
+            steps += 1
+
+        avg_focus = total_focus / max(steps, 1)
+        score = round(min(1.0, max(0.0, avg_focus * 0.6 + (total_reward / max(steps, 1)) * 0.4)), 4)
+
+        return {
+            "score": score,
+            "avg_focus": round(avg_focus, 4),
+            "total_reward": round(total_reward, 4),
+            "total_distractions": total_distractions,
+            "steps": steps,
+            "grade": "A" if score > 0.75 else "B" if score > 0.5 else "C"
+        }
+
     # 🔥 KEEP SMALL EXPLORATION
     def freeze(self):
         self.epsilon = 0.05

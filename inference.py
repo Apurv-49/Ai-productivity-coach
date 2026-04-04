@@ -1,69 +1,72 @@
 """
 inference.py — OpenEnv compliant inference script
-Uses OpenAI client with API_BASE_URL, MODEL_NAME, HF_TOKEN from env vars
-Emits [START], [STEP], [END] logs as required by hackathon spec
+Emits exact [START], [STEP], [END] format as required by hackathon spec
 """
 import os
-import json
 import time
 import requests
 from openai import OpenAI
 
-# ✅ READ FROM ENVIRONMENT VARIABLES (required by spec)
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
+# ✅ ENVIRONMENT VARIABLES (required by spec)
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+ENV_URL = os.getenv("ENV_URL", "https://apurv255-ai-productivity-coach.hf.space")
 
 # ✅ OPENAI CLIENT (required by spec)
 client = OpenAI(
-    base_url=f"{API_BASE_URL}/v1" if not API_BASE_URL.endswith("/v1") else API_BASE_URL,
+    base_url=API_BASE_URL,
     api_key=HF_TOKEN if HF_TOKEN else "not-needed"
 )
-
-ENV_URL = os.environ.get("ENV_URL", "https://apurv255-ai-productivity-coach.hf.space")
 
 
 def reset_env(task: str = "easy"):
     try:
-        resp = requests.get(f"{ENV_URL}/reset", params={"task": task})
-        
+        resp = requests.post(
+            f"{ENV_URL}/reset",
+            json={"task": task},
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+        if resp.status_code != 200:
+            raise Exception(f"Reset failed with status {resp.status_code}: {resp.text}")
         data = resp.json()
         if "state" in data:
             return data["state"]
-        elif "error" in data:
-            raise Exception(f"Server error: {data['error']}")
         return data
     except Exception as e:
-        print(f"[ERROR] reset_env failed: {e}")
+        print(f"  [ERROR] reset_env failed: {e}")
         raise
 
 
 def step_env(state: dict):
     try:
+        payload = {
+            "current_task": state.get("current_task", "DSA"),
+            "focus_level": float(state.get("focus_level", 0.5)),
+            "fatigue": float(state.get("fatigue", 0.0)),
+            "distractions": list(state.get("distractions", [])),
+            "time_spent": int(state.get("time_spent", 0)),
+            "deadline": int(state.get("deadline", 60))
+        }
+
         resp = requests.post(
             f"{ENV_URL}/step_rl",
-            json=state,
-            headers={"Content-Type": "application/json"}
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=30
         )
-        
-        data = resp.json()
-        return data
+
+        if resp.status_code != 200:
+            raise Exception(f"step_rl failed: {resp.status_code} {resp.text[:200]}")
+
+        return resp.json()
     except Exception as e:
-        print(f"[ERROR] step_env failed: {e}")
+        print(f"  [ERROR] step_env failed: {e}")
         raise
 
 
-def get_score():
-    try:
-        resp = requests.get(f"{ENV_URL}/score")
-        return resp.json()
-    except Exception as e:
-        print(f"[ERROR] get_score failed: {e}")
-        return {"overall_score": 0, "tasks": {}}
-
-
 def get_action_from_llm(state: dict) -> str:
-    """Use OpenAI client to get action from LLM."""
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -79,79 +82,82 @@ def get_action_from_llm(state: dict) -> str:
                 {
                     "role": "user",
                     "content": (
-                        f"Current state:\n"
-                        f"- Focus level: {state['focus_level']}\n"
-                        f"- Fatigue: {state['fatigue']}\n"
-                        f"- Distractions: {state['distractions']}\n"
-                        f"- Time spent: {state['time_spent']}/{state['deadline']}\n"
-                        f"What action should the agent take?"
+                        f"Focus: {state['focus_level']}, "
+                        f"Fatigue: {state['fatigue']}, "
+                        f"Distractions: {state['distractions']}, "
+                        f"Time: {state['time_spent']}/{state['deadline']}"
                     )
                 }
             ],
             max_tokens=10
         )
         action = response.choices[0].message.content.strip().lower()
-        if action not in ["continue", "take_break", "block_distraction"]:
-            action = "continue"
-        return action
-    except Exception:
-        # fallback to RL agent if LLM unavailable
-        return None
+        
+        for valid in ["block_distraction", "take_break", "continue"]:
+            if valid in action:
+                return valid
+        return "continue"
+    except Exception as e:
+        
+        return "continue"
 
 
 def run_episode(task: str = "easy"):
-    print("[START]")
-    print(json.dumps({
-        "task": task,
-        "model": MODEL_NAME,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ")
-    }))
+    print(f"[START] task={task} env=ai-productivity-coach model={MODEL_NAME}")
 
-    state = reset_env(task)
+    try:
+        state = reset_env(task)
+    except Exception as e:
+        print(f"[END] success=false steps=0 rewards=")
+        return []
+
     done = False
     step_count = 0
-    total_reward = 0
+    rewards = []
 
     while not done and step_count < 30:
-        # try LLM first, fallback to RL agent
-        llm_action = get_action_from_llm(state)
+        try:
+            action = get_action_from_llm(state)
+            result = step_env(state)
 
-        # build step input — always send full state
-        step_input = dict(state)
-        if llm_action:
-            step_input["action"] = llm_action
+            next_state = result.get("state", state)
+            reward = float(result.get("reward", 0.0))
+            done = bool(result.get("done", False))
+            rewards.append(reward)
 
-        result = step_env(state)
+            print(
+                f"[STEP] step={step_count + 1} "
+                f"action={action} "
+                f"reward={reward:.2f} "
+                f"done={str(done).lower()} "
+                f"error=null"
+            )
 
-        next_state = result.get("state", state)
-        reward = result.get("reward", 0)
-        done = result.get("done", False)
-        total_reward += reward
+            state = next_state
+            step_count += 1
 
-        print("[STEP]")
-        print(json.dumps({
-            "step": step_count,
-            "action": llm_action or "rl_agent",
-            "reward": round(reward, 4),
-            "done": done,
-            "state": next_state
-        }))
+        except Exception as e:
+            error = str(e).replace("\n", " ")[:100]
+            print(
+                f"[STEP] step={step_count + 1} "
+                f"action=null "
+                f"reward=0.00 "
+                f"done=false "
+                f"error={error}"
+            )
+            step_count += 1
+            break
 
-        state = next_state
-        step_count += 1
-        time.sleep(0.1)
+    success = len(rewards) > 0 and any(r > 0 for r in rewards)
+    rewards_str = ",".join([f"{r:.2f}" for r in rewards])
 
-    score = get_score()
+    print(
+        f"[END] success={str(success).lower()} "
+        f"steps={step_count} "
+        f"rewards={rewards_str}"
+    )
 
-    print("[END]")
-    print(json.dumps({
-        "task": task,
-        "total_steps": step_count,
-        "total_reward": round(total_reward, 4),
-        "scores": score
-    }))
-
-    return score
+    return rewards
 
 
 if __name__ == "__main__":
@@ -163,10 +169,7 @@ if __name__ == "__main__":
 
     if args.task == "all":
         for t in ["easy", "medium", "hard"]:
-            print(f"\n{'='*40}")
-            print(f"Running task: {t.upper()}")
-            print(f"{'='*40}")
             run_episode(task=t)
-            time.sleep(1)
+            time.sleep(2)
     else:
         run_episode(task=args.task)

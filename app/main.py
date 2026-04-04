@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,15 +58,17 @@ def home():
 def health():
     return {"status": "ok", "message": "AI Productivity Coach is running"}
 
-@app.get("/reset")
-def reset(task: str = "easy"):
+@app.post("/reset")
+def reset(body: dict = Body(default={})):
     try:
+        task = "easy"
+        if body and "task" in body:
+            task = body["task"]
         obs = env.reset(task)
         return {"state": obs.dict()}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# ✅ NEW — required by OpenEnv spec
 @app.get("/state")
 def state():
     try:
@@ -99,7 +101,6 @@ def step(obs: Observation):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# ✅ UPDATED — per-task grader scores
 @app.get("/score")
 def score():
     try:
@@ -107,9 +108,7 @@ def score():
         easy = env.grade(agent, "easy")
         medium = env.grade(agent, "medium")
         hard = env.grade(agent, "hard")
-
         overall = round((easy.score + medium.score + hard.score) / 3, 4)
-
         return {
             "overall_score": overall,
             "tasks": {

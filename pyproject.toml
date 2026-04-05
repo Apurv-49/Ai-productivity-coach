@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "app.main:app"
+server = "server.app:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -25,5 +25,5 @@ build-backend = "setuptools.backends.legacy:build"
 [tool.openenv]
 name = "ai-productivity-coach"
 version = "1.0.0"
-entry_point = "app.main:app"
+entry_point = "server.app:main"
 tasks = ["easy", "medium", "hard"]

@@ -1,121 +1,50 @@
-from fastapi import FastAPI, Body
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-import os
-from app.env import FocusEnv
-from app.agent import FocusAgent
-from app.models import Observation
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from app.env import ProductivityEnv
+import uvicorn
 
-app = FastAPI(
-    title="AI Productivity Coach",
-    description="RL-based productivity coaching system",
-    version="1.0.0"
-)
+app = FastAPI()
+env = ProductivityEnv()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class ResetRequest(BaseModel):
+    task: str = "easy"
 
-env = FocusEnv()
-agent = FocusAgent()
-
-@app.on_event("startup")
-async def startup_event():
-    try:
-        if not os.path.exists("q_table.json"):
-            print("No Q-table found. Training agent for 300 episodes...")
-            agent.train(env, episodes=300)
-            print("Training complete.")
-        else:
-            print("Q-table loaded. Agent ready.")
-    except Exception as e:
-        print(f"Startup warning: {e}")
-
-app.mount("/static", StaticFiles(directory="app"), name="static")
-
-@app.get("/", response_class=HTMLResponse)
-def home():
-    try:
-        with open("app/index.html", "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return HTMLResponse(content="""
-            <html>
-                <body style='font-family:sans-serif; padding:2rem; background:#0d0d0d; color:white;'>
-                    <h2>🧠 AI Productivity Coach API</h2>
-                    <p>Backend is running successfully.</p>
-                    <p>Visit <a href='/docs' style='color:#a78bfa;'>/docs</a> for API reference.</p>
-                </body>
-            </html>
-        """, status_code=200)
+class StepRequest(BaseModel):
+    action: str
+    focus_level: float = 0.5
+    fatigue: float = 0.1
+    distractions: list = []
+    time_spent: int = 0
+    deadline: int = 60
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "message": "AI Productivity Coach is running"}
+    return {"status": "ok"}
 
 @app.post("/reset")
-def reset(body: dict = Body(default={})):
-    try:
-        task = "easy"
-        if body and "task" in body:
-            task = body["task"]
-        obs = env.reset(task)
-        return {"state": obs.dict()}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.get("/state")
-def state():
-    try:
-        return {"state": env.state().dict()}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+def reset(body: ResetRequest):
+    state = env.reset(task=body.task)
+    return {"state": state}
 
 @app.post("/step_rl")
-def step_rl(obs: Observation):
-    try:
-        action, _ = agent.decide(obs.dict(), training=False)
-        next_state, reward, done, _ = env.step(action)
-        return {
-            "state": next_state.dict(),
-            "reward": reward.value,
-            "done": done
-        }
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.post("/step")
-def step(obs: Observation):
-    try:
-        action, reason = agent.decide(obs.dict(), training=False)
-        return {
-            "action": action.action,
-            "target": action.target,
-            "reason": reason
-        }
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+def step_rl(body: StepRequest):
+    state = body.dict()
+    action = state.pop("action")
+    next_state, reward, done = env.step(action, state)
+    return {"state": next_state, "reward": reward, "done": done}
 
 @app.get("/score")
 def score():
-    try:
-        agent.freeze()
-        easy = env.grade(agent, "easy")
-        medium = env.grade(agent, "medium")
-        hard = env.grade(agent, "hard")
-        overall = round((easy.score + medium.score + hard.score) / 3, 4)
-        return {
-            "overall_score": overall,
-            "tasks": {
-                "easy": easy.dict(),
-                "medium": medium.dict(),
-                "hard": hard.dict()
-            }
-        }
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    return {"score": env.get_score()}
+
+# Serve frontend
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse("app/static/index.html")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=7860)

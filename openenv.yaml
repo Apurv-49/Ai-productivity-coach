@@ -12,7 +12,7 @@ environment:
   observation_space:
     type: dict
     properties:
-      focus:
+      focus_level:
         type: float
         min: 0
         max: 1
@@ -21,11 +21,13 @@ environment:
         min: 0
         max: 1
       distractions:
+        type: array
+        items:
+          type: string
+      time_spent:
         type: int
-        min: 0
-        max: 10
-      time_remaining:
-        type: float
+      deadline:
+        type: int
 
   action_space:
     type: discrete

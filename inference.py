@@ -31,12 +31,13 @@ def reset_env(task="easy"):
         }
 
 
-# ✅ SAFE STEP (WITH FALLBACK)
-def step_env(state):
+# ✅ SAFE STEP (WITH FALLBACK) — now accepts action too
+def step_env(state, action):
     try:
+        payload = {"action": action, **state}   # ← action is now sent to the env
         resp = requests.post(
             f"{ENV_URL}/step_rl",
-            json=state,
+            json=payload,
             timeout=10
         )
         resp.raise_for_status()
@@ -69,7 +70,7 @@ def get_action_from_llm(state):
                 "messages": [
                     {
                         "role": "system",
-                        "content": "Reply ONLY: continue, take_break, block_distraction"
+                        "content": "Reply ONLY with one of: continue, take_break, block_distraction"
                     },
                     {
                         "role": "user",
@@ -87,7 +88,7 @@ def get_action_from_llm(state):
         if not choices:
             return "continue"
 
-        action = choices[0].get("message", {}).get("content", "").lower()
+        action = choices[0].get("message", {}).get("content", "").strip().lower()
 
         for a in ["continue", "take_break", "block_distraction"]:
             if a in action:
@@ -111,8 +112,8 @@ def run_episode(task="easy"):
 
     while not done and step < 30:
         try:
-            action = get_action_from_llm(state)
-            result = step_env(state)
+            action = get_action_from_llm(state)         # ← LLM picks action
+            result = step_env(state, action)             # ← action passed to env
 
             state = result.get("state", state)
             reward = float(result.get("reward", 0))

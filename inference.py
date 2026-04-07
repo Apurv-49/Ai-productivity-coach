@@ -2,6 +2,23 @@
 inference.py — OpenEnv compliant inference script
 Emits exact [START], [STEP], [END] format as required by hackathon spec
 """
+import subprocess
+import sys
+
+# ✅ AUTO-INSTALL REQUIRED PACKAGES
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q"])
+
+try:
+    import openai
+except ImportError:
+    install("openai>=2.7.2")
+
+try:
+    import requests
+except ImportError:
+    install("requests")
+
 import os
 import time
 import requests
@@ -92,13 +109,11 @@ def get_action_from_llm(state: dict) -> str:
             max_tokens=10
         )
         action = response.choices[0].message.content.strip().lower()
-        
         for valid in ["block_distraction", "take_break", "continue"]:
             if valid in action:
                 return valid
         return "continue"
-    except Exception as e:
-        
+    except Exception:
         return "continue"
 
 

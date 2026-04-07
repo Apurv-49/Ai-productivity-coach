@@ -1,24 +1,24 @@
-from pydantic import BaseModel, field_validator
-from typing import List, Dict
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
 
 class Observation(BaseModel):
-    current_task: str
-    focus_level: float
-    fatigue: float
-    distractions: List[str]
-    time_spent: int
-    deadline: int
+    current_task: str = "DSA"
+    focus_level: float = 0.7
+    fatigue: float = 0.0
+    distractions: List[str] = []
+    time_spent: int = 0
+    deadline: int = 60
 
-    @field_validator("focus_level")
-    def round_focus(cls, v):
-        return round(v, 2)
 
 class Action(BaseModel):
-    action: str
-    target: str = ""
+    action: str  # "continue", "take_break", "block_distraction"
+    target: Optional[str] = None  # used for block_distraction
+
 
 class Reward(BaseModel):
     value: float
+
 
 class TaskScore(BaseModel):
     task: str
@@ -28,6 +28,7 @@ class TaskScore(BaseModel):
     total_reward: float
     steps: int
 
+
 class EpisodeScore(BaseModel):
-    overall_score: float
-    tasks: Dict[str, TaskScore]
+    scores: List[TaskScore]
+    overall: float

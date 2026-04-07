@@ -1,5 +1,5 @@
 import random
-from app.models import Observation, Action, Reward, TaskScore, EpisodeScore
+from app.models import Observation, Action, Reward, TaskScore
 
 
 class Task:
@@ -17,14 +17,15 @@ TASKS = {
 }
 
 
-class FocusEnv:
+# Alias so both names work
+class ProductivityEnv:
     def __init__(self):
         self.task = TASKS["easy"]
         self.history = []
         self.reset("easy")
 
     def reset(self, task_type="easy"):
-        self.task = TASKS[task_type]
+        self.task = TASKS.get(task_type, TASKS["easy"])
         self.current_task_type = task_type
 
         self.state_data = {
@@ -39,7 +40,6 @@ class FocusEnv:
         self.history = []
         return Observation(**self.state_data)
 
-    # ✅ NEW — required by OpenEnv spec
     def state(self):
         return Observation(**self.state_data)
 
@@ -63,7 +63,7 @@ class FocusEnv:
             self.state_data["fatigue"] = max(0.0, self.state_data["fatigue"])
             self.state_data["focus_level"] += 0.1
 
-        time_ratio = self.state_data["time_spent"] / self.state_data["deadline"]
+        time_ratio = self.state_data["time_spent"] / max(self.state_data["deadline"], 1)
 
         if action.action == "continue":
             reward = self.state_data["focus_level"] * (2.2 + time_ratio)
@@ -114,7 +114,15 @@ class FocusEnv:
 
         return Observation(**self.state_data), Reward(value=reward), done, {}
 
-    # ✅ NEW — per-task grader (scores 0.0 to 1.0)
+    def get_score(self):
+        """Returns a simple 0-1 score based on session history."""
+        if not self.history:
+            return 0.0
+        avg_focus = sum(h["focus"] for h in self.history) / len(self.history)
+        avg_reward = sum(h["reward"] for h in self.history) / len(self.history)
+        score = round(min(1.0, max(0.0, avg_focus * 0.7 + avg_reward * 0.05)), 4)
+        return score
+
     def grade(self, agent, task_type="easy"):
         self.reset(task_type)
         state_dict = self.state().dict()
@@ -133,8 +141,6 @@ class FocusEnv:
             steps += 1
 
         avg_focus = total_focus / max(steps, 1)
-
-        # difficulty penalty — harder tasks need higher focus to score same
         difficulty_factor = {"easy": 0.0, "medium": 0.05, "hard": 0.12}
         penalty = difficulty_factor.get(task_type, 0.0)
 
@@ -154,3 +160,7 @@ class FocusEnv:
             total_reward=round(total_reward, 4),
             steps=steps
         )
+
+
+# Keep FocusEnv as alias for backward compatibility
+FocusEnv = ProductivityEnv

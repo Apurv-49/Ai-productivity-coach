@@ -1,93 +1,250 @@
 from app.models import Action
 import random
 import json
+import os
 
 
 class FocusAgent:
     def __init__(self):
         self.q_table = {}
-        self.actions = ["continue", "take_break", "block_distraction"]
+        self.actions = [
+            "continue",
+            "take_break",
+            "block_distraction"
+        ]
 
         self.alpha = 0.1
         self.gamma = 0.9
         self.epsilon = 0.4
 
+        # Store q_table.json in the project root
+        self.q_table_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "q_table.json"
+        )
+
+        self.q_table_path = os.path.abspath(
+            self.q_table_path
+        )
+
         self.load_q_table()
 
-    # 🔥 STATE GENERALIZATION
+    # -----------------------------------------
+    # STATE GENERALIZATION
+    # -----------------------------------------
     def get_state_key(self, state):
         focus = round(state["focus_level"], 1)
         fatigue = round(state["fatigue"], 1)
-        distractions = len(state["distractions"])
-        time_ratio = round(state["time_spent"] / state["deadline"], 1)
 
-        return (focus, fatigue, distractions, time_ratio)
+        distractions = len(
+            state["distractions"]
+        )
 
-    # 🤖 DECISION
+        deadline = max(
+            state["deadline"],
+            1
+        )
+
+        time_ratio = round(
+            state["time_spent"] / deadline,
+            1
+        )
+
+        return (
+            focus,
+            fatigue,
+            distractions,
+            time_ratio
+        )
+
+    # -----------------------------------------
+    # DECISION
+    # -----------------------------------------
     def decide(self, state, training=True):
-        state_key = self.get_state_key(state)
+
+        state_key = self.get_state_key(
+            state
+        )
 
         if state_key not in self.q_table:
-            self.q_table[state_key] = {a: 0 for a in self.actions}
+            self.q_table[state_key] = {
+                action: 0
+                for action in self.actions
+            }
 
-        if training and random.random() < self.epsilon:
-            action_type = random.choice(self.actions)
+        # Exploration
+        if (
+            training
+            and random.random() < self.epsilon
+        ):
+            action_type = random.choice(
+                self.actions
+            )
+
             reason = "Exploring"
+
+        # Exploitation
         else:
-            q_vals = self.q_table[state_key]
-            max_q = max(q_vals.values())
+            q_values = self.q_table[
+                state_key
+            ]
 
-            best_actions = [a for a, q in q_vals.items() if q == max_q]
-            action_type = random.choice(best_actions)
+            max_q = max(
+                q_values.values()
+            )
 
-            reason = "Exploiting learned policy"
+            best_actions = [
+                action
+                for action, q_value
+                in q_values.items()
+                if q_value == max_q
+            ]
 
+            action_type = random.choice(
+                best_actions
+            )
+
+            reason = (
+                "Exploiting learned policy"
+            )
+
+        # Create Action object
         if action_type == "block_distraction":
-            target = state["distractions"][0] if state["distractions"] else "youtube"
-            action = Action(action=action_type, target=target)
+
+            target = (
+                state["distractions"][0]
+                if state["distractions"]
+                else "youtube"
+            )
+
+            action = Action(
+                action=action_type,
+                target=target
+            )
+
         else:
-            action = Action(action=action_type)
+
+            action = Action(
+                action=action_type
+            )
 
         return action, reason
 
-    # 🧠 UPDATE
-    def update(self, prev_state, action, reward, next_state):
-        s = self.get_state_key(prev_state)
-        ns = self.get_state_key(next_state)
+    # -----------------------------------------
+    # Q-LEARNING UPDATE
+    # -----------------------------------------
+    def update(
+        self,
+        prev_state,
+        action,
+        reward,
+        next_state
+    ):
 
-        if s not in self.q_table:
-            self.q_table[s] = {a: 0 for a in self.actions}
-
-        if ns not in self.q_table:
-            self.q_table[ns] = {a: 0 for a in self.actions}
-
-        current_q = self.q_table[s][action]
-        max_next_q = max(self.q_table[ns].values())
-
-        new_q = current_q + self.alpha * (
-            reward + self.gamma * max_next_q - current_q
+        current_state_key = (
+            self.get_state_key(
+                prev_state
+            )
         )
 
-        self.q_table[s][action] = new_q
+        next_state_key = (
+            self.get_state_key(
+                next_state
+            )
+        )
 
-        # 🔥 FASTER DECAY
-        self.epsilon = max(0.05, self.epsilon * 0.992)
+        if current_state_key not in self.q_table:
 
-    # 🏋️ TRAIN
-    def train(self, env, episodes=300):
-        print(f"Training for {episodes} episodes...")
+            self.q_table[
+                current_state_key
+            ] = {
+                action_name: 0
+                for action_name
+                in self.actions
+            }
 
-        for episode in range(episodes):
+        if next_state_key not in self.q_table:
+
+            self.q_table[
+                next_state_key
+            ] = {
+                action_name: 0
+                for action_name
+                in self.actions
+            }
+
+        current_q = self.q_table[
+            current_state_key
+        ][action]
+
+        max_next_q = max(
+            self.q_table[
+                next_state_key
+            ].values()
+        )
+
+        new_q = (
+            current_q
+            + self.alpha
+            * (
+                reward
+                + self.gamma
+                * max_next_q
+                - current_q
+            )
+        )
+
+        self.q_table[
+            current_state_key
+        ][action] = new_q
+
+        # Gradually reduce exploration
+        self.epsilon = max(
+            0.05,
+            self.epsilon * 0.992
+        )
+
+    # -----------------------------------------
+    # TRAIN
+    # -----------------------------------------
+    def train(
+        self,
+        env,
+        episodes=300
+    ):
+
+        print(
+            f"Training for {episodes} episodes..."
+        )
+
+        for episode in range(
+            episodes
+        ):
+
             state = env.reset()
             state_dict = state.dict()
+
             done = False
             steps = 0
 
-            while not done and steps < 50:
-                action, _ = self.decide(state_dict, training=True)
-                next_state, reward, done, _ = env.step(action)
+            while (
+                not done
+                and steps < 50
+            ):
 
-                next_state_dict = next_state.dict()
+                action, _ = self.decide(
+                    state_dict,
+                    training=True
+                )
+
+                next_state, reward, done, _ = (
+                    env.step(action)
+                )
+
+                next_state_dict = (
+                    next_state.dict()
+                )
 
                 self.update(
                     prev_state=state_dict,
@@ -100,65 +257,189 @@ class FocusAgent:
                 steps += 1
 
             if episode % 50 == 0:
-                print(f"  Episode {episode}/{episodes} | epsilon={self.epsilon:.3f}")
+                print(
+                    f"Episode {episode}/{episodes} "
+                    f"| epsilon={self.epsilon:.3f}"
+                )
 
         self.save_q_table()
-        print("Training complete. Q-table saved.")
 
-    # 📊 SCORE
+        print(
+            "Training complete. Q-table saved."
+        )
+
+    # -----------------------------------------
+    # SCORE
+    # -----------------------------------------
     def get_score(self, env):
+
         state = env.reset()
         state_dict = state.dict()
+
         done = False
+
         total_reward = 0
         total_focus = 0
         total_distractions = 0
         steps = 0
 
+        # Disable exploration
         self.freeze()
 
-        while not done and steps < 50:
-            action, _ = self.decide(state_dict, training=False)
-            next_state, reward, done, _ = env.step(action)
+        while (
+            not done
+            and steps < 50
+        ):
 
-            next_state_dict = next_state.dict()
+            action, _ = self.decide(
+                state_dict,
+                training=False
+            )
+
+            next_state, reward, done, _ = (
+                env.step(action)
+            )
+
+            next_state_dict = (
+                next_state.dict()
+            )
+
             total_reward += reward.value
-            total_focus += next_state_dict["focus_level"]
-            total_distractions += len(next_state_dict["distractions"])
+
+            total_focus += (
+                next_state_dict[
+                    "focus_level"
+                ]
+            )
+
+            total_distractions += len(
+                next_state_dict[
+                    "distractions"
+                ]
+            )
+
             state_dict = next_state_dict
             steps += 1
 
-        avg_focus = total_focus / max(steps, 1)
-        score = round(min(1.0, max(0.0, avg_focus * 0.6 + (total_reward / max(steps, 1)) * 0.4)), 4)
+        avg_focus = (
+            total_focus
+            / max(steps, 1)
+        )
+
+        avg_reward = (
+            total_reward
+            / max(steps, 1)
+        )
+
+        score = round(
+            min(
+                1.0,
+                max(
+                    0.0,
+                    avg_focus * 0.6
+                    + avg_reward * 0.4
+                )
+            ),
+            4
+        )
 
         return {
             "score": score,
-            "avg_focus": round(avg_focus, 4),
-            "total_reward": round(total_reward, 4),
-            "total_distractions": total_distractions,
+            "avg_focus": round(
+                avg_focus,
+                4
+            ),
+            "total_reward": round(
+                total_reward,
+                4
+            ),
+            "total_distractions":
+                total_distractions,
             "steps": steps,
-            "grade": "A" if score > 0.75 else "B" if score > 0.5 else "C"
+            "grade":
+                "A"
+                if score > 0.75
+                else "B"
+                if score > 0.5
+                else "C"
         }
 
-    # 🔥 KEEP SMALL EXPLORATION
+    # -----------------------------------------
+    # FREEZE EXPLORATION
+    # -----------------------------------------
     def freeze(self):
         self.epsilon = 0.05
 
-    # 💾 SAVE
+    # -----------------------------------------
+    # SAVE Q-TABLE
+    # -----------------------------------------
     def save_q_table(self):
-        serializable_q = {str(k): v for k, v in self.q_table.items()}
-        with open("q_table.json", "w") as f:
-            json.dump(serializable_q, f)
 
-    # 📂 LOAD
+        serializable_q = {
+            str(key): value
+            for key, value
+            in self.q_table.items()
+        }
+
+        with open(
+            self.q_table_path,
+            "w"
+        ) as file:
+
+            json.dump(
+                serializable_q,
+                file,
+                indent=2
+            )
+
+    # -----------------------------------------
+    # LOAD Q-TABLE
+    # -----------------------------------------
     def load_q_table(self):
-        try:
-            with open("q_table.json", "r") as f:
-                raw_q = json.load(f)
 
-                self.q_table = {}
-                for k, v in raw_q.items():
-                    key = tuple(map(float, k.strip("()").split(", ")))
-                    self.q_table[key] = v
-        except:
+        try:
+
+            with open(
+                self.q_table_path,
+                "r"
+            ) as file:
+
+                raw_q = json.load(file)
+
             self.q_table = {}
+
+            for key, value in raw_q.items():
+
+                key = key.strip("()")
+
+                parts = key.split(",")
+
+                parsed_key = tuple(
+                    float(
+                        part.strip()
+                    )
+                    for part in parts
+                )
+
+                self.q_table[
+                    parsed_key
+                ] = value
+
+            print(
+                f"Loaded Q-table: "
+                f"{len(self.q_table)} states"
+            )
+
+        except (
+            FileNotFoundError,
+            json.JSONDecodeError,
+            ValueError,
+            TypeError
+        ):
+
+            self.q_table = {}
+
+            print(
+                "No valid Q-table found. "
+                "Starting with an empty Q-table."
+            )

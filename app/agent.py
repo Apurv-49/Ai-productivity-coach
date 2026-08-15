@@ -5,8 +5,11 @@ import os
 
 
 class FocusAgent:
+
     def __init__(self):
+
         self.q_table = {}
+
         self.actions = [
             "continue",
             "take_break",
@@ -17,25 +20,34 @@ class FocusAgent:
         self.gamma = 0.9
         self.epsilon = 0.4
 
-        # Store q_table.json in the project root
-        self.q_table_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "..",
-            "q_table.json"
-        )
-
+        # q_table.json is stored in project root
         self.q_table_path = os.path.abspath(
-            self.q_table_path
+            os.path.join(
+                os.path.dirname(
+                    os.path.abspath(__file__)
+                ),
+                "..",
+                "q_table.json"
+            )
         )
 
         self.load_q_table()
+
 
     # -----------------------------------------
     # STATE GENERALIZATION
     # -----------------------------------------
     def get_state_key(self, state):
-        focus = round(state["focus_level"], 1)
-        fatigue = round(state["fatigue"], 1)
+
+        focus = round(
+            state["focus_level"],
+            1
+        )
+
+        fatigue = round(
+            state["fatigue"],
+            1
+        )
 
         distractions = len(
             state["distractions"]
@@ -58,58 +70,171 @@ class FocusAgent:
             time_ratio
         )
 
+
+    # -----------------------------------------
+    # FIND NEAREST TRAINED STATE
+    # -----------------------------------------
+    def find_nearest_state(self, state_key):
+
+        if not self.q_table:
+            return None
+
+        best_state = None
+        best_distance = float("inf")
+
+        for trained_state in self.q_table.keys():
+
+            # State:
+            # (focus, fatigue, distractions, time_ratio)
+
+            focus_distance = (
+                trained_state[0]
+                - state_key[0]
+            ) ** 2
+
+            fatigue_distance = (
+                trained_state[1]
+                - state_key[1]
+            ) ** 2
+
+            distraction_distance = (
+                trained_state[2]
+                - state_key[2]
+            ) ** 2
+
+            time_distance = (
+                trained_state[3]
+                - state_key[3]
+            ) ** 2
+
+            distance = (
+                focus_distance
+                + fatigue_distance
+                + distraction_distance
+                + time_distance
+            )
+
+            if distance < best_distance:
+
+                best_distance = distance
+                best_state = trained_state
+
+        return best_state
+
+
     # -----------------------------------------
     # DECISION
     # -----------------------------------------
-    def decide(self, state, training=True):
+    def decide(
+        self,
+        state,
+        training=True
+    ):
 
         state_key = self.get_state_key(
             state
         )
 
-        if state_key not in self.q_table:
-            self.q_table[state_key] = {
-                action: 0
-                for action in self.actions
-            }
+        # -----------------------------------------
+        # EXACT STATE EXISTS
+        # -----------------------------------------
+        if state_key in self.q_table:
 
-        # Exploration
-        if (
-            training
-            and random.random() < self.epsilon
-        ):
-            action_type = random.choice(
-                self.actions
-            )
+            policy_state = state_key
+            reason_prefix = "Using learned policy"
 
-            reason = "Exploring"
-
-        # Exploitation
+        # -----------------------------------------
+        # UNSEEN STATE
+        # -----------------------------------------
         else:
-            q_values = self.q_table[
-                state_key
-            ]
 
-            max_q = max(
-                q_values.values()
+            nearest_state = (
+                self.find_nearest_state(
+                    state_key
+                )
             )
 
-            best_actions = [
-                action
-                for action, q_value
-                in q_values.items()
-                if q_value == max_q
-            ]
+            if nearest_state is not None:
 
-            action_type = random.choice(
-                best_actions
-            )
+                policy_state = nearest_state
+
+                reason_prefix = (
+                    "Using nearest learned state"
+                )
+
+            else:
+
+                # No trained states at all
+                policy_state = None
+
+                reason_prefix = (
+                    "No trained state available"
+                )
+
+
+        # -----------------------------------------
+        # NO Q-TABLE AVAILABLE
+        # -----------------------------------------
+        if policy_state is None:
+
+            action_type = "continue"
 
             reason = (
-                "Exploiting learned policy"
+                "No trained Q-table available"
             )
 
-        # Create Action object
+        else:
+
+            q_values = self.q_table[
+                policy_state
+            ]
+
+            # -----------------------------------------
+            # EXPLORATION
+            # -----------------------------------------
+            if (
+                training
+                and random.random()
+                < self.epsilon
+            ):
+
+                action_type = random.choice(
+                    self.actions
+                )
+
+                reason = (
+                    f"{reason_prefix} - Exploring"
+                )
+
+            # -----------------------------------------
+            # EXPLOITATION
+            # -----------------------------------------
+            else:
+
+                max_q = max(
+                    q_values.values()
+                )
+
+                best_actions = [
+                    action
+                    for action, q_value
+                    in q_values.items()
+                    if q_value == max_q
+                ]
+
+                action_type = random.choice(
+                    best_actions
+                )
+
+                reason = (
+                    f"{reason_prefix} - "
+                    "Exploiting learned policy"
+                )
+
+
+        # -----------------------------------------
+        # CREATE ACTION OBJECT
+        # -----------------------------------------
         if action_type == "block_distraction":
 
             target = (
@@ -129,7 +254,9 @@ class FocusAgent:
                 action=action_type
             )
 
+
         return action, reason
+
 
     # -----------------------------------------
     # Q-LEARNING UPDATE
@@ -205,6 +332,7 @@ class FocusAgent:
             self.epsilon * 0.992
         )
 
+
     # -----------------------------------------
     # TRAIN
     # -----------------------------------------
@@ -223,6 +351,7 @@ class FocusAgent:
         ):
 
             state = env.reset()
+
             state_dict = state.dict()
 
             done = False
@@ -257,6 +386,7 @@ class FocusAgent:
                 steps += 1
 
             if episode % 50 == 0:
+
                 print(
                     f"Episode {episode}/{episodes} "
                     f"| epsilon={self.epsilon:.3f}"
@@ -268,12 +398,14 @@ class FocusAgent:
             "Training complete. Q-table saved."
         )
 
+
     # -----------------------------------------
     # SCORE
     # -----------------------------------------
     def get_score(self, env):
 
         state = env.reset()
+
         state_dict = state.dict()
 
         done = False
@@ -283,7 +415,6 @@ class FocusAgent:
         total_distractions = 0
         steps = 0
 
-        # Disable exploration
         self.freeze()
 
         while (
@@ -319,7 +450,9 @@ class FocusAgent:
             )
 
             state_dict = next_state_dict
+
             steps += 1
+
 
         avg_focus = (
             total_focus
@@ -330,6 +463,7 @@ class FocusAgent:
             total_reward
             / max(steps, 1)
         )
+
 
         score = round(
             min(
@@ -343,19 +477,26 @@ class FocusAgent:
             4
         )
 
+
         return {
             "score": score,
+
             "avg_focus": round(
                 avg_focus,
                 4
             ),
+
             "total_reward": round(
                 total_reward,
                 4
             ),
+
             "total_distractions":
                 total_distractions,
-            "steps": steps,
+
+            "steps":
+                steps,
+
             "grade":
                 "A"
                 if score > 0.75
@@ -364,11 +505,14 @@ class FocusAgent:
                 else "C"
         }
 
+
     # -----------------------------------------
     # FREEZE EXPLORATION
     # -----------------------------------------
     def freeze(self):
+
         self.epsilon = 0.05
+
 
     # -----------------------------------------
     # SAVE Q-TABLE
@@ -392,6 +536,7 @@ class FocusAgent:
                 indent=2
             )
 
+
     # -----------------------------------------
     # LOAD Q-TABLE
     # -----------------------------------------
@@ -404,13 +549,17 @@ class FocusAgent:
                 "r"
             ) as file:
 
-                raw_q = json.load(file)
+                raw_q = json.load(
+                    file
+                )
 
             self.q_table = {}
 
             for key, value in raw_q.items():
 
-                key = key.strip("()")
+                key = key.strip(
+                    "()"
+                )
 
                 parts = key.split(",")
 

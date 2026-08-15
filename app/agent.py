@@ -20,7 +20,7 @@ class FocusAgent:
         self.gamma = 0.9
         self.epsilon = 0.4
 
-        # q_table.json is stored in project root
+        # q_table.json is stored in the project root
         self.q_table_path = os.path.abspath(
             os.path.join(
                 os.path.dirname(
@@ -123,6 +123,39 @@ class FocusAgent:
 
 
     # -----------------------------------------
+    # GET Q-VALUES FOR CURRENT STATE
+    # -----------------------------------------
+    def get_q_values(self, state):
+
+        state_key = self.get_state_key(
+            state
+        )
+
+        # Exact trained state
+        if state_key in self.q_table:
+
+            return self.q_table[
+                state_key
+            ]
+
+        # Unseen state -> nearest trained state
+        nearest_state = (
+            self.find_nearest_state(
+                state_key
+            )
+        )
+
+        if nearest_state is not None:
+
+            return self.q_table[
+                nearest_state
+            ]
+
+        # No trained model available
+        return {}
+
+
+    # -----------------------------------------
     # DECISION
     # -----------------------------------------
     def decide(
@@ -135,13 +168,18 @@ class FocusAgent:
             state
         )
 
+
         # -----------------------------------------
         # EXACT STATE EXISTS
         # -----------------------------------------
         if state_key in self.q_table:
 
             policy_state = state_key
-            reason_prefix = "Using learned policy"
+
+            reason_prefix = (
+                "Using learned policy"
+            )
+
 
         # -----------------------------------------
         # UNSEEN STATE
@@ -164,7 +202,6 @@ class FocusAgent:
 
             else:
 
-                # No trained states at all
                 policy_state = None
 
                 reason_prefix = (
@@ -183,11 +220,13 @@ class FocusAgent:
                 "No trained Q-table available"
             )
 
+
         else:
 
             q_values = self.q_table[
                 policy_state
             ]
+
 
             # -----------------------------------------
             # EXPLORATION
@@ -205,6 +244,7 @@ class FocusAgent:
                 reason = (
                     f"{reason_prefix} - Exploring"
                 )
+
 
             # -----------------------------------------
             # EXPLOITATION
@@ -281,6 +321,7 @@ class FocusAgent:
             )
         )
 
+
         if current_state_key not in self.q_table:
 
             self.q_table[
@@ -290,6 +331,7 @@ class FocusAgent:
                 for action_name
                 in self.actions
             }
+
 
         if next_state_key not in self.q_table:
 
@@ -301,15 +343,18 @@ class FocusAgent:
                 in self.actions
             }
 
+
         current_q = self.q_table[
             current_state_key
         ][action]
+
 
         max_next_q = max(
             self.q_table[
                 next_state_key
             ].values()
         )
+
 
         new_q = (
             current_q
@@ -322,9 +367,11 @@ class FocusAgent:
             )
         )
 
+
         self.q_table[
             current_state_key
         ][action] = new_q
+
 
         # Gradually reduce exploration
         self.epsilon = max(
@@ -346,6 +393,7 @@ class FocusAgent:
             f"Training for {episodes} episodes..."
         )
 
+
         for episode in range(
             episodes
         ):
@@ -357,6 +405,7 @@ class FocusAgent:
             done = False
             steps = 0
 
+
             while (
                 not done
                 and steps < 50
@@ -367,13 +416,16 @@ class FocusAgent:
                     training=True
                 )
 
+
                 next_state, reward, done, _ = (
                     env.step(action)
                 )
 
+
                 next_state_dict = (
                     next_state.dict()
                 )
+
 
                 self.update(
                     prev_state=state_dict,
@@ -382,8 +434,11 @@ class FocusAgent:
                     next_state=next_state_dict
                 )
 
+
                 state_dict = next_state_dict
+
                 steps += 1
+
 
             if episode % 50 == 0:
 
@@ -392,7 +447,9 @@ class FocusAgent:
                     f"| epsilon={self.epsilon:.3f}"
                 )
 
+
         self.save_q_table()
+
 
         print(
             "Training complete. Q-table saved."
@@ -415,7 +472,9 @@ class FocusAgent:
         total_distractions = 0
         steps = 0
 
+
         self.freeze()
+
 
         while (
             not done
@@ -427,15 +486,19 @@ class FocusAgent:
                 training=False
             )
 
+
             next_state, reward, done, _ = (
                 env.step(action)
             )
+
 
             next_state_dict = (
                 next_state.dict()
             )
 
+
             total_reward += reward.value
+
 
             total_focus += (
                 next_state_dict[
@@ -443,11 +506,13 @@ class FocusAgent:
                 ]
             )
 
+
             total_distractions += len(
                 next_state_dict[
                     "distractions"
                 ]
             )
+
 
             state_dict = next_state_dict
 
@@ -458,6 +523,7 @@ class FocusAgent:
             total_focus
             / max(steps, 1)
         )
+
 
         avg_reward = (
             total_reward
@@ -525,6 +591,7 @@ class FocusAgent:
             in self.q_table.items()
         }
 
+
         with open(
             self.q_table_path,
             "w"
@@ -553,7 +620,9 @@ class FocusAgent:
                     file
                 )
 
+
             self.q_table = {}
+
 
             for key, value in raw_q.items():
 
@@ -563,6 +632,7 @@ class FocusAgent:
 
                 parts = key.split(",")
 
+
                 parsed_key = tuple(
                     float(
                         part.strip()
@@ -570,14 +640,17 @@ class FocusAgent:
                     for part in parts
                 )
 
+
                 self.q_table[
                     parsed_key
                 ] = value
+
 
             print(
                 f"Loaded Q-table: "
                 f"{len(self.q_table)} states"
             )
+
 
         except (
             FileNotFoundError,
@@ -587,6 +660,7 @@ class FocusAgent:
         ):
 
             self.q_table = {}
+
 
             print(
                 "No valid Q-table found. "

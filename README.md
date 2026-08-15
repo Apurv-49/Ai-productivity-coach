@@ -104,6 +104,9 @@ focusforge/
 │   ├── env.py
 │   ├── agent.py
 │   ├── models.py
+│   ├── index.html
+│   ├── script.js
+│   └── style.css
 │
 ├── inference.py
 ├── openenv.yaml

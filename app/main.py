@@ -43,10 +43,12 @@ def reset(body: ResetRequest):
 @app.post("/step_rl")
 def step_rl(body: StepRequest):
     action = Action(action=body.action, target=body.target)
+
     try:
         next_obs, reward, done, _ = env.step(action)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
     return {
         "state": next_obs.dict(),
         "reward": reward.value,
@@ -61,16 +63,18 @@ def step_advice(body: AdviceRequest):
     fatigue = body.fatigue
     distractions = body.distractions
 
-    # Simple rule-based advice (no agent needed)
     if fatigue > 0.6:
         advice = "Take a break — your fatigue is high."
         suggested_action = "take_break"
+
     elif len(distractions) > 0:
         advice = f"Block distractions: {', '.join(distractions)}"
         suggested_action = "block_distraction"
+
     elif focus < 0.4:
         advice = "Take a short break to restore focus."
         suggested_action = "take_break"
+
     else:
         advice = "You're in a good state — keep working!"
         suggested_action = "continue"
@@ -88,22 +92,32 @@ def score():
     return {"score": env.get_score()}
 
 
-# Serve frontend static files if they exist
-static_dir = "app/static"
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# --------------------------------------------------
+# Serve frontend from the app/ directory
+# --------------------------------------------------
 
-    @app.get("/")
-    def root():
-        index = os.path.join(static_dir, "index.html")
-        if os.path.exists(index):
-            return FileResponse(index)
-        return {"message": "AI Productivity Coach API is running!"}
-else:
-    @app.get("/")
-    def root():
-        return {"message": "AI Productivity Coach API is running!"}
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app.mount(
+    "/static",
+    StaticFiles(directory=APP_DIR),
+    name="static"
+)
+
+
+@app.get("/")
+def root():
+    index_file = os.path.join(APP_DIR, "index.html")
+
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+
+    return {"message": "AI Productivity Coach API is running!"}
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=7860
+    )

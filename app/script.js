@@ -93,7 +93,9 @@ function initCharts() {
     type: "line",
 
     data: {
-      labels: currentSession.map((_, i) => `Step ${i + 1}`),
+      labels: currentSession.map(
+        (_, i) => `Step ${i + 1}`
+      ),
 
       datasets: [
         {
@@ -101,7 +103,8 @@ function initCharts() {
           data: currentSession,
 
           borderColor: "#3b82f6",
-          backgroundColor: "rgba(59,130,246,0.1)",
+          backgroundColor:
+            "rgba(59,130,246,0.1)",
 
           tension: 0.4,
           fill: true,
@@ -117,7 +120,9 @@ function initCharts() {
     type: "line",
 
     data: {
-      labels: previousSession.map((_, i) => `Step ${i + 1}`),
+      labels: previousSession.map(
+        (_, i) => `Step ${i + 1}`
+      ),
 
       datasets: [
         {
@@ -125,7 +130,8 @@ function initCharts() {
           data: previousSession,
 
           borderColor: "#f97316",
-          backgroundColor: "rgba(249,115,22,0.1)",
+          backgroundColor:
+            "rgba(249,115,22,0.1)",
 
           tension: 0.4,
           fill: true,
@@ -139,7 +145,9 @@ function initCharts() {
 
   if (currentSession.length > 0) {
     currentFocus =
-      currentSession[currentSession.length - 1];
+      currentSession[
+        currentSession.length - 1
+      ];
   }
 }
 
@@ -170,7 +178,8 @@ function updateState(action) {
 
 
   if (action === "continue") {
-    currentFocus += 0.04 * (1 - currentFatigue);
+    currentFocus +=
+      0.04 * (1 - currentFatigue);
   }
 
 
@@ -180,7 +189,10 @@ function updateState(action) {
   }
 
 
-  else if (action === "block_distraction") {
+  else if (
+    action === "block_distraction"
+  ) {
+
     if (currentDistractions.length > 0) {
       currentDistractions.shift();
       currentFocus += 0.06;
@@ -189,23 +201,35 @@ function updateState(action) {
 
 
   if (Math.random() < 0.1) {
-    currentDistractions.push("instagram");
+    currentDistractions.push(
+      "instagram"
+    );
+
     currentFocus -= 0.03;
   }
 
 
   currentFocus -= 0.02;
-  currentFocus -= currentFatigue * 0.05;
+
+  currentFocus -=
+    currentFatigue * 0.05;
 
 
   currentFocus = Math.max(
     0.05,
-    Math.min(1, currentFocus)
+    Math.min(
+      1,
+      currentFocus
+    )
   );
+
 
   currentFatigue = Math.max(
     0,
-    Math.min(1, currentFatigue)
+    Math.min(
+      1,
+      currentFatigue
+    )
   );
 }
 
@@ -219,32 +243,35 @@ function generateAdvice(
   fatigue,
   distractions
 ) {
+
   if (action === "take_break") {
 
-    return `Your fatigue is high (${fatigue.toFixed(
+    return `Your fatigue is currently ${fatigue.toFixed(
       2
-    )}). Taking a short 5–10 minute break will restore your focus and improve overall performance.`;
+    )}. Taking a short 5–10 minute break can help restore your focus.`;
 
   }
 
 
-  else if (action === "block_distraction") {
+  else if (
+    action === "block_distraction"
+  ) {
 
     const distraction =
       distractions.length > 0
         ? distractions[0]
         : "distractions";
 
-    return `"${distraction}" is actively hurting your focus. Blocking it now will give you a significant productivity boost.`;
+    return `"${distraction}" is affecting your focus. Blocking this distraction will help you return to your task.`;
 
   }
 
 
   else {
 
-    return `Your focus is at ${focus.toFixed(
+    return `Your focus is currently ${focus.toFixed(
       2
-    )} — you're in a solid flow state. Keep going and maintain this momentum!`;
+    )}. Your learned policy recommends continuing with the task.`;
 
   }
 }
@@ -258,15 +285,22 @@ function generateConfidence(
   fatigue,
   distractions
 ) {
+
   const base =
     focus * 0.6 -
     fatigue * 0.3 -
     distractions.length * 0.05;
 
-  const confidence = Math.max(
-    0.4,
-    Math.min(0.99, base + 0.5)
-  );
+
+  const confidence =
+    Math.max(
+      0.4,
+      Math.min(
+        0.99,
+        base + 0.5
+      )
+    );
+
 
   return (
     (confidence * 100).toFixed(0) +
@@ -283,6 +317,7 @@ async function fetchWithRetry(
   options,
   retries = 2
 ) {
+
   try {
 
     const response = await fetch(
@@ -313,8 +348,12 @@ async function fetchWithRetry(
 
       await new Promise(
         (resolve) =>
-          setTimeout(resolve, 500)
+          setTimeout(
+            resolve,
+            500
+          )
       );
+
 
       return await fetchWithRetry(
         url,
@@ -353,7 +392,9 @@ async function stepEnv() {
 
 
   const adviceElement =
-    document.getElementById("advice");
+    document.getElementById(
+      "advice"
+    );
 
 
   if (adviceElement) {
@@ -368,7 +409,10 @@ async function stepEnv() {
 
   await new Promise(
     (resolve) =>
-      setTimeout(resolve, 400)
+      setTimeout(
+        resolve,
+        400
+      )
   );
 
 
@@ -376,7 +420,9 @@ async function stepEnv() {
      INITIAL INPUT
   ----------------------------- */
 
-  if (currentSession.length === 0) {
+  if (
+    currentSession.length === 0
+  ) {
 
     const focusInput =
       document.getElementById(
@@ -395,10 +441,14 @@ async function stepEnv() {
 
 
     const focusValue =
-      parseFloat(focusInput.value);
+      parseFloat(
+        focusInput.value
+      );
 
     const fatigueValue =
-      parseFloat(fatigueInput.value);
+      parseFloat(
+        fatigueInput.value
+      );
 
     const distractionValue =
       distractionInput.value;
@@ -409,7 +459,10 @@ async function stepEnv() {
         ? 0.5
         : Math.max(
             0,
-            Math.min(1, focusValue)
+            Math.min(
+              1,
+              focusValue
+            )
           );
 
 
@@ -418,15 +471,23 @@ async function stepEnv() {
         ? 0.3
         : Math.max(
             0,
-            Math.min(1, fatigueValue)
+            Math.min(
+              1,
+              fatigueValue
+            )
           );
 
 
     currentDistractions =
       distractionValue
         .split(",")
-        .map((item) => item.trim())
-        .filter((item) => item);
+        .map(
+          (item) =>
+            item.trim()
+        )
+        .filter(
+          (item) => item
+        );
   }
 
 
@@ -448,11 +509,17 @@ async function stepEnv() {
           },
 
           body: JSON.stringify({
-            focus_level: currentFocus,
-            fatigue: currentFatigue,
+            focus_level:
+              currentFocus,
+
+            fatigue:
+              currentFatigue,
+
             distractions:
               currentDistractions,
+
             time_spent: 0,
+
             deadline: 60,
           }),
         }
@@ -460,20 +527,21 @@ async function stepEnv() {
 
 
     /* -----------------------------
-       MATCH BACKEND RESPONSE
+       BACKEND RESPONSE
     ----------------------------- */
 
     const action =
-      data.suggested_action;
+      data.suggested_action ||
+      data.action ||
+      "continue";
 
 
+    // IMPORTANT:
+    // Use the actual reason returned
+    // by the Q-learning agent.
     const reason =
-      action === "take_break"
-        ? "Your fatigue level is high."
-        : action ===
-            "block_distraction"
-          ? "A distraction is affecting your focus."
-          : "Your current focus level is healthy.";
+      data.reason ||
+      "Using learned productivity policy.";
 
 
     const advice =
@@ -514,18 +582,21 @@ async function stepEnv() {
 
 
     if (actionElement) {
+
       actionElement.innerText =
-        action || "continue";
+        action;
     }
 
 
     if (reasonElement) {
+
       reasonElement.innerText =
         reason;
     }
 
 
     if (confidenceElement) {
+
       confidenceElement.innerText =
         confidence;
     }
@@ -547,7 +618,9 @@ async function stepEnv() {
        UPDATE STATE
     ----------------------------- */
 
-    updateState(action);
+    updateState(
+      action
+    );
 
 
     document.getElementById(
@@ -565,7 +638,9 @@ async function stepEnv() {
     document.getElementById(
       "distractionInput"
     ).value =
-      currentDistractions.join(", ");
+      currentDistractions.join(
+        ", "
+      );
 
 
     /* -----------------------------
@@ -599,8 +674,10 @@ async function stepEnv() {
             `Step ${index + 1}`
         );
 
+
       chart.data.datasets[0].data =
         currentSession;
+
 
       chart.update();
     }

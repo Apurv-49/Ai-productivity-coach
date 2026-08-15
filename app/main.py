@@ -10,6 +10,7 @@ from app.agent import FocusAgent
 
 import uvicorn
 import os
+import math
 
 
 # --------------------------------------------------
@@ -62,6 +63,7 @@ def health():
 def reset(body: ResetRequest):
 
     try:
+
         state = env.reset(
             task_type=body.task_type
         )
@@ -121,6 +123,10 @@ def step_advice(body: AdviceRequest):
     an action based on the current productivity state.
     """
 
+    # -----------------------------------------------
+    # BUILD CURRENT STATE
+    # -----------------------------------------------
+
     state = {
         "focus_level": body.focus_level,
         "fatigue": body.fatigue,
@@ -129,15 +135,28 @@ def step_advice(body: AdviceRequest):
         "deadline": max(body.deadline, 1)
     }
 
+
     try:
 
-        # Get action directly from trained Q-learning agent
+        # -------------------------------------------
+        # GET ACTION FROM Q-LEARNING POLICY
+        # -------------------------------------------
+
         action, agent_reason = agent.decide(
             state,
             training=False
         )
 
         action_type = action.action
+
+
+        # -------------------------------------------
+        # GET LEARNED Q-VALUES
+        # -------------------------------------------
+
+        q_values = agent.get_q_values(
+            state
+        )
 
     except Exception as e:
 
@@ -156,9 +175,11 @@ def step_advice(body: AdviceRequest):
         advice = (
             f"Your fatigue is currently "
             f"{body.fatigue:.2f}. "
-            "Taking a short 5–10 minute break "
-            "can help restore your focus."
+            "The learned policy recommends "
+            "taking a short 5–10 minute break "
+            "to restore your focus."
         )
+
 
     elif action_type == "block_distraction":
 
@@ -175,35 +196,90 @@ def step_advice(body: AdviceRequest):
 
         advice = (
             f'"{target}" is affecting your focus. '
-            "Block this distraction and return "
-            "to your task."
+            "The learned policy recommends "
+            "blocking this distraction."
         )
+
 
     else:
 
         advice = (
             f"Your focus is currently "
             f"{body.focus_level:.2f}. "
-            "Your learned policy recommends "
+            "The learned policy recommends "
             "continuing with the task."
         )
 
 
     # --------------------------------------------------
-    # CONFIDENCE ESTIMATION
+    # Q-VALUE BASED CONFIDENCE
     # --------------------------------------------------
 
-    confidence_base = (
-        body.focus_level * 0.6
-        - body.fatigue * 0.3
-        - len(body.distractions) * 0.05
-    )
+    confidence = 0.0
 
+    if q_values:
+
+        # Make sure all three actions are present
+        ordered_values = [
+            float(
+                q_values.get(
+                    action_name,
+                    0.0
+                )
+            )
+            for action_name in agent.actions
+        ]
+
+        # Stable softmax
+        max_q = max(
+            ordered_values
+        )
+
+        exp_values = [
+            math.exp(
+                q_value - max_q
+            )
+            for q_value in ordered_values
+        ]
+
+        total_exp = sum(
+            exp_values
+        )
+
+        if total_exp > 0:
+
+            probabilities = [
+                value / total_exp
+                for value in exp_values
+            ]
+
+            selected_index = (
+                agent.actions.index(
+                    action_type
+                )
+            )
+
+            confidence = probabilities[
+                selected_index
+            ]
+
+
+    # -----------------------------------------------
+    # FALLBACK
+    # -----------------------------------------------
+
+    else:
+
+        # No learned Q-values available
+        confidence = 0.0
+
+
+    # Keep value between 0 and 1
     confidence = max(
-        0.4,
+        0.0,
         min(
-            0.99,
-            confidence_base + 0.5
+            1.0,
+            confidence
         )
     )
 
@@ -213,24 +289,28 @@ def step_advice(body: AdviceRequest):
     # --------------------------------------------------
 
     return {
+
         "advice": advice,
 
-        # Main action
+        # Selected action
         "suggested_action": action_type,
         "action": action_type,
 
-        # Actual reason returned by the Q-learning agent
+        # Q-learning explanation
         "reason": agent_reason,
 
         # Current state
         "current_focus": body.focus_level,
         "current_fatigue": body.fatigue,
 
-        # Confidence
+        # Q-learning based confidence
         "confidence": round(
             confidence,
             2
-        )
+        ),
+
+        # Expose Q-values for transparency/debugging
+        "q_values": q_values
     }
 
 
@@ -260,6 +340,7 @@ def score():
 APP_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
+
 
 app.mount(
     "/static",

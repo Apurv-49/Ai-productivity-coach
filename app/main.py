@@ -117,12 +117,10 @@ def step_rl(body: StepRequest):
 @app.post("/step")
 def step_advice(body: AdviceRequest):
     """
-    Uses the trained Q-learning agent to choose
-    the best productivity action for the current state.
+    Uses the trained Q-learning agent to select
+    an action based on the current productivity state.
     """
 
-    # Create state dictionary in the same format
-    # expected by FocusAgent.get_state_key()
     state = {
         "focus_level": body.focus_level,
         "fatigue": body.fatigue,
@@ -133,8 +131,8 @@ def step_advice(body: AdviceRequest):
 
     try:
 
-        # Use learned Q-table policy
-        action, reason = agent.decide(
+        # Get action directly from trained Q-learning agent
+        action, agent_reason = agent.decide(
             state,
             training=False
         )
@@ -150,7 +148,7 @@ def step_advice(body: AdviceRequest):
 
 
     # --------------------------------------------------
-    # GENERATE HUMAN-READABLE ADVICE
+    # GENERATE USER-FRIENDLY ADVICE
     # --------------------------------------------------
 
     if action_type == "take_break":
@@ -158,10 +156,9 @@ def step_advice(body: AdviceRequest):
         advice = (
             f"Your fatigue is currently "
             f"{body.fatigue:.2f}. "
-            "Take a short 5–10 minute break "
-            "to restore your focus."
+            "Taking a short 5–10 minute break "
+            "can help restore your focus."
         )
-
 
     elif action_type == "block_distraction":
 
@@ -171,7 +168,10 @@ def step_advice(body: AdviceRequest):
 
         else:
 
-            target = action.target or "your distractions"
+            target = (
+                action.target
+                or "your distractions"
+            )
 
         advice = (
             f'"{target}" is affecting your focus. '
@@ -179,14 +179,13 @@ def step_advice(body: AdviceRequest):
             "to your task."
         )
 
-
     else:
 
         advice = (
             f"Your focus is currently "
             f"{body.focus_level:.2f}. "
-            "You're in a good state to continue "
-            "working."
+            "Your learned policy recommends "
+            "continuing with the task."
         )
 
 
@@ -209,14 +208,29 @@ def step_advice(body: AdviceRequest):
     )
 
 
+    # --------------------------------------------------
+    # RESPONSE
+    # --------------------------------------------------
+
     return {
         "advice": advice,
+
+        # Main action
         "suggested_action": action_type,
         "action": action_type,
-        "reason": reason,
+
+        # Actual reason returned by the Q-learning agent
+        "reason": agent_reason,
+
+        # Current state
         "current_focus": body.focus_level,
         "current_fatigue": body.fatigue,
-        "confidence": round(confidence, 2)
+
+        # Confidence
+        "confidence": round(
+            confidence,
+            2
+        )
     }
 
 
@@ -246,7 +260,6 @@ def score():
 APP_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
-
 
 app.mount(
     "/static",

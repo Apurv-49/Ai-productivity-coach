@@ -4,7 +4,7 @@ emoji: 🧠
 colorFrom: purple
 colorTo: blue
 sdk: docker
-app_port: 8000
+app_port: 7860
 pinned: false
 ---
 
@@ -70,7 +70,7 @@ uvicorn app.main:app --reload
 ## 🐳 Run with Docker
 ```bash
 docker build -t focusforge .
-docker run -p 8000:8000 focusforge
+docker run -p 7860:7860 focusforge
 ```
 
 ---
